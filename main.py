@@ -16,8 +16,8 @@ def main():
 
     print(resp.text)
 
-    print("Proompt tokens: " + resp.usage_metadata.prompt_token_count)
-    print("Resp tokens: " + resp.usage_metadata.candidates_token_count)
+    print(f"Proompt tokens: {resp.usage_metadata.prompt_token_count}")
+    print(f"Resp tokens: {resp.usage_metadata.candidates_token_count}")
 
 
 if __name__ == "__main__":
