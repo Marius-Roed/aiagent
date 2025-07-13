@@ -44,7 +44,7 @@ def call_function(function_call_part, verbose="false"):
                 )
             ],
         )
-    except Exception as e:
+    except Exception:
         return types.Content(
             role="tool",
             parts=[
@@ -71,6 +71,10 @@ When a user asks a question or makes a request, make a function call plan. You c
 - List files and directories
 
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
+
+Only when you have completed all necessary tool calls and have the information needed to answer the user's question, provide a clear, concise final response without explaining your process.
+
+If you are asked to update or fix anything, always keep the logic of the files the same. Find the line to update/fix and only update what's necessary.
 """
     user_prompt = sys.argv[1]
 
@@ -153,29 +157,48 @@ All paths you provide should be relative to the working directory. You do not ne
 
     client = genai.Client(api_key=api_key)
 
-    resp = client.models.generate_content(
-        model='gemini-2.0-flash-001',
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions],
-            system_instruction=system_prompt
-        )
-    )
-    if "--verbose" in sys.argv:
-        verbose = True
+    try:
+        for i in range(20):
+            resp = client.models.generate_content(
+                model='gemini-2.0-flash-001',
+                contents=messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions],
+                    system_instruction=system_prompt
+                )
+            )
 
-    if resp.function_calls and len(resp.function_calls) > 0:
-        for function_call_part in resp.function_calls:
-            function_result = call_function(function_call_part, verbose)
-            print(f"-> {function_result.parts[0].function_response.response}")
-    if (resp.text):
-        print(resp.text)
+            if len(resp.candidates) > 0:
+                for candidate in resp.candidates:
+                    messages.append(
+                        types.Content(role=candidate.content.role,
+                                      parts=candidate.content.parts)
+                    )
+
+            if "--verbose" in sys.argv:
+                verbose = True
+
+            if resp.function_calls and len(resp.function_calls) > 0:
+                for function_call_part in resp.function_calls:
+                    function_result = call_function(
+                        function_call_part, verbose)
+                    messages.append(function_result)
+
+            if (resp.text):
+                break
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)
+
+    print(resp.text)
 
     if verbose:
         print("")
         print(f"User prompt: {user_prompt}")
-        print(f"Prompt tokens: {resp.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {resp.usage_metadata.candidates_token_count}")
+        print(f"Prompt tokens: {
+            resp.usage_metadata.prompt_token_count}")
+        print(f"Response tokens: {
+            resp.usage_metadata.candidates_token_count}")
 
 
 if __name__ == "__main__":
